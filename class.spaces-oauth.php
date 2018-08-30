@@ -9,12 +9,6 @@ class MittwaldSpacesOauth
     CONST DEFAULT_CLIENT_ID = 'spaces.de/oauth/cms/wordpress/%spaceID%';
     CONST DEFAULT_USER_GROUP = 'subscriber';
 
-    /** @var string */
-    private $oauth_redirect_return_url;
-
-    /** @var string */
-    private $oauth_start_login_url;
-
     /** @var array */
     private $loginMessages = [];
 
@@ -23,9 +17,6 @@ class MittwaldSpacesOauth
      */
     public function __construct()
     {
-        $this->oauth_redirect_return_url = wp_login_url();
-        $this->oauth_start_login_url = plugins_url('redirect.php', __FILE__);
-
         if (!session_id()) {
             session_start();
         }
@@ -149,7 +140,7 @@ class MittwaldSpacesOauth
     {
         ?>
         <p class="spaces-oauth">
-            <a class="button" href="<? echo $this->oauth_start_login_url ?>">SPACES OAUTH Login</a>
+            <a class="button" href="?oauthSpaces">SPACES OAUTH Login</a>
         </p>
         <br>
         <?php
@@ -160,6 +151,10 @@ class MittwaldSpacesOauth
      */
     function onAuthenticate()
     {
+        if(isset($_GET['oauthSpaces'])) {
+            header('Location: ' . $this->getRedirectUrl());
+            die();
+        }
 
         $code = isset($_GET['code']) ? $_GET['code'] : null;
         $state = isset($_GET['state']) ? $_GET['state'] : null;
@@ -249,7 +244,7 @@ class MittwaldSpacesOauth
         $environment['SPACES_SPACE_ID'] = $spaceID;
         $environment['SPACES_OAUTH_CLIENT_ID'] = $clientID;
 
-        $oauthContext = new \Mw\Spaces\OAuth2\StaticContext($this->oauth_redirect_return_url);
+        $oauthContext = new \Mw\Spaces\OAuth2\StaticContext(wp_login_url());
         $oauthOptions = new \Mw\Spaces\OAuth2\EnvironmentOptions($environment);
 
         return new \Mw\Spaces\OAuth2\SpacesProvider($oauthOptions, $oauthContext);
@@ -304,7 +299,7 @@ class MittwaldSpacesOauth
      */
     private function getAvailableRoles() {
         return array_keys(
-                get_editable_roles()
+            get_editable_roles()
         );
     }
 
