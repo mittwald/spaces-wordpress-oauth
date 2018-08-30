@@ -1,0 +1,15 @@
+{
+  "name": "mittwald/wordpress-spaces-auth",
+  "description": "SPACES authentication for the wordpress backend",
+  "license": "MIT",
+  "type": "wordpress-plugin",
+  "repositories": [
+    {
+      "type": "composer",
+      "url": "https://composer.typo3.org/"
+    }
+  ],
+  "require": {
+    "spaces/oauth2-client": "^2.0.0"
+  }
+}
