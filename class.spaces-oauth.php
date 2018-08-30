@@ -140,7 +140,7 @@ class MittwaldSpacesOauth
     {
         ?>
         <p class="spaces-oauth">
-            <a class="button" href="?oauthSpaces">SPACES OAUTH Login</a>
+            <a class="button" href="<?php echo wp_login_url(); ?>?oauthSpaces">SPACES OAUTH Login</a>
         </p>
         <br>
         <?php
