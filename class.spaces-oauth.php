@@ -8,6 +8,8 @@ class MittwaldSpacesOauth
     CONST SESSION_OAUTH_SPACES_CSRF = 'spaces/csrf';
     CONST DEFAULT_CLIENT_ID = 'spaces.de/oauth/cms/wordpress/%spaceID%';
     CONST DEFAULT_USER_GROUP = 'subscriber';
+    CONST SPACES_OAUTH_FILTER_AUTHENTICATE = 'spaces/oauth/authenticate';
+    CONST SPACES_OAUTH_FILTER_AFTER_AUTHENTICATE = 'spaces/oauth/authenticate/after';
 
     /** @var array */
     private $loginMessages = [];
@@ -31,7 +33,10 @@ class MittwaldSpacesOauth
         add_filter('login_message', [$this, 'loginMessages']);
 
         add_filter('authenticate', [$this, 'onAuthenticate'], 10, 0);
+        add_filter(self::SPACES_OAUTH_FILTER_AUTHENTICATE, [$this, 'onAuthenticate'], 10, 0);
+
         add_filter('authenticate', [$this, 'afterAuthenticate'], 30, 3);
+        add_filter(self::SPACES_OAUTH_FILTER_AFTER_AUTHENTICATE, [$this, 'afterAuthenticate'], 30, 3);
 
         add_action('admin_menu', [$this, 'initAdminMenu']);
     }
@@ -101,7 +106,7 @@ class MittwaldSpacesOauth
                         <td>
                             <select name="spaces_oauth_default_user_group">
                                 <?php foreach($this->getAvailableRoles() as $role): ?>
-                                    <option value="<?php echo esc_attr($role); ?>">
+                                    <option <?php echo $this->getDefaultUserGroup() === $role ? 'selected="selected"' : '' ?> value="<?php echo esc_attr($role); ?>">
                                         <?php echo esc_attr($role); ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -139,11 +144,21 @@ class MittwaldSpacesOauth
     function appendBackendLoginTemplate()
     {
         ?>
-        <p class="spaces-oauth">
-            <a class="button" href="<?php echo wp_login_url(); ?>?oauthSpaces">SPACES OAUTH Login</a>
-        </p>
-        <br>
+        <div class="spaces-oauth">
+            <a class="button button-primary button-large" href="<?php echo $this->getSpacesRedirectUrl(); ?>">SPACES OAUTH Login</a><br />
+            <br />
+        </div>
         <?php
+    }
+
+    /**
+     * @return string
+     */
+    private function getSpacesRedirectUrl() {
+        $loginUrl = wp_login_url();
+        $urlParts = parse_url($loginUrl);
+
+        return $urlParts['query'] ? $loginUrl . '&oauthSpaces' : $loginUrl . '?oauthSpaces';
     }
 
     /**
@@ -152,8 +167,8 @@ class MittwaldSpacesOauth
     function onAuthenticate()
     {
         if(isset($_GET['oauthSpaces'])) {
-            header('Location: ' . $this->getRedirectUrl());
-            die();
+            wp_redirect($this->getRedirectUrl());
+            return;
         }
 
         $code = isset($_GET['code']) ? $_GET['code'] : null;
@@ -167,7 +182,7 @@ class MittwaldSpacesOauth
             return false;
         }
 
-        if ($code && $state) {
+        if ($code && $state && !is_user_logged_in()) {
             try {
                 if ($_SESSION[self::SESSION_OAUTH_SPACES_CSRF] !== $state || !$code) {
                     $this->addLoginMessage("SPACES Login failed! Token invalid");
@@ -194,7 +209,6 @@ class MittwaldSpacesOauth
                 return $user;
 
             } catch (Exception $e) {
-
                 $this->addLoginMessage("SPACES Login failed!");
             }
         }
@@ -210,13 +224,8 @@ class MittwaldSpacesOauth
      */
     function afterAuthenticate($user, $username, $password)
     {
-
-        if ($username && $password && $user) {
-            $spaceOwnerId = get_user_meta($user->ID, 'spaces_owner_id', true);
-
-            if ($spaceOwnerId) {
-                return false;
-            }
+        if ($username && $password && $user && $this->getUserMetaSpaceOwner($user->ID) !== false) {
+            return false;
         }
 
         return $user;
@@ -266,6 +275,30 @@ class MittwaldSpacesOauth
     }
 
     /**
+     * @param $userID
+     * @param $owner
+     * @return false|int
+     */
+    private function setUserMetaSpaceOwner($userID, $owner) {
+
+        return add_user_meta($userID, 'spaces_owner_id', $owner);
+    }
+
+    /**
+     * @param $userID
+     * @return bool|mixed
+     */
+    private function getUserMetaSpaceOwner($userID) {
+        $spaceOwnerId = get_user_meta($userID, 'spaces_owner_id', true);
+
+        if (!$spaceOwnerId) {
+            return false;
+        }
+
+        return $spaceOwnerId;
+    }
+
+    /**
      * @param \Mw\Spaces\OAuth2\SpacesResourceOwner $owner
      * @return WP_User
      */
@@ -274,6 +307,10 @@ class MittwaldSpacesOauth
         $user = get_user_by('email', $owner->getEmailAddress());
 
         if ($user) {
+            if (!$this->getUserMetaSpaceOwner($user->ID)) {
+                $this->setUserMetaSpaceOwner($user->ID, $owner->getId());
+            }
+
             return $user;
         }
 
@@ -284,14 +321,20 @@ class MittwaldSpacesOauth
         );
 
         $user = new WP_User($user_id);
-        $user->set_role(
-            get_option('spaces_oauth_default_user_group', self::DEFAULT_USER_GROUP)
-        );
+        $user->set_role($this->getDefaultUserGroup());
 
         wp_update_user($user);
-        add_user_meta($user_id, 'spaces_owner_id', $owner->getId());
+
+        $this->setUserMetaSpaceOwner($user_id, $owner->getId());
 
         return get_user_by('id', $user_id);
+    }
+
+    /**
+     * @return string
+     */
+    private function getDefaultUserGroup() {
+        return get_option('spaces_oauth_default_user_group', self::DEFAULT_USER_GROUP);
     }
 
     /**
