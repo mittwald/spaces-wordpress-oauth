@@ -66,9 +66,11 @@ class MittwaldSpacesOauth
         register_setting('space-oauth-settings-group', 'spaces_oauth_default_user_group', [
             'default' => self::DEFAULT_USER_GROUP,
         ]);
-        register_setting('space-oauth-settings-group', 'spaces_oauth_space_id');
+        register_setting('space-oauth-settings-group', 'spaces_oauth_space_id', [
+            'default' => $this->getEnvSpaceID(),
+        ]);
         register_setting('space-oauth-settings-group', 'spaces_oauth_client_id', [
-            'default' => self::DEFAULT_CLIENT_ID,
+            'default' => $this->getEnvClientID() ?: self::DEFAULT_CLIENT_ID,
         ]);
     }
 
@@ -89,7 +91,9 @@ class MittwaldSpacesOauth
                         <td>
                             <input style="width:100%" type="text" name="spaces_oauth_space_id"
                                    value="<?php echo esc_attr(get_option('spaces_oauth_space_id')); ?>"/><br/>
-                            Leave empty to get the SPACE_ID over environment variable `SPACES_SPACE_ID`
+                            Leave empty to get the SPACE_ID over environment variable `SPACES_SPACE_ID`<br /><br />
+                            CURRENT ENV SPACE ID: <b><?php echo $this->getEnvSpaceID(); ?></b><br />
+                            SPACE ID USED: <b><?php echo $this->getSpaceId(); ?></b>
                         </td>
                     </tr>
                     <tr valign="top">
@@ -97,8 +101,9 @@ class MittwaldSpacesOauth
                         <td>
                             <input style="width:100%" type="text" name="spaces_oauth_client_id"
                                    value="<?php echo esc_attr(get_option('spaces_oauth_client_id')); ?>"/><br/>
-                            Leave empty to get the CLIENT_ID over environment variable `SPACES_OAUTH_CLIENT_ID`<br />
-                            DEFAULT: <?php echo self::DEFAULT_CLIENT_ID ?>
+                            Leave empty to get the CLIENT_ID over environment variable `SPACES_OAUTH_CLIENT_ID`<br /><br />
+                            CURRENT ENV CLIENT ID: <b><?php echo $this->getEnvClientID(); ?></b><br />
+                            CLIENT ID USED: <b><?php echo $this->getClientID(); ?></b>
                         </td>
                     </tr>
                     <tr valign="top">
@@ -367,11 +372,14 @@ class MittwaldSpacesOauth
      */
     private function getSpaceId()
     {
-        $env = $this->getEnvironment();
-        $spaceID = isset($env['SPACES_SPACE_ID']) ? $env['SPACES_SPACE_ID'] : null;
+        $spaceID = get_option('spaces_oauth_space_id');
 
-        if (!$spaceID) {
-            return get_option('spaces_oauth_space_id', null);
+        if ($spaceID === "%empty%") {
+            return "";
+        }
+
+        if(!$spaceID) {
+            $spaceID = $this->getEnvSpaceID();
         }
 
         return $spaceID;
@@ -382,15 +390,32 @@ class MittwaldSpacesOauth
      */
     private function getClientID()
     {
-        $env = $this->getEnvironment();
-        $clientID = isset($env['SPACES_OAUTH_CLIENT_ID']) ? $env['SPACES_OAUTH_CLIENT_ID'] : null;
+        $clientID = get_option('spaces_oauth_client_id');
 
         if (!$clientID) {
-            $clientID = get_option('spaces_oauth_client_id', self::DEFAULT_CLIENT_ID);
+            $clientID = $this->getEnvClientID();
         }
 
-        $clientID = str_replace('%spaceID%', $this->getSpaceId(), $clientID);
+        if (!$clientID) {
+            $clientID = self::DEFAULT_CLIENT_ID;
+        }
 
-        return $clientID;
+        return str_replace('%spaceID%', $this->getSpaceId(), $clientID);
+    }
+
+    /**
+     * @return string
+     */
+    private function getEnvSpaceID() {
+        $env = $this->getEnvironment();
+        return isset($env['SPACES_SPACE_ID']) ? $env['SPACES_SPACE_ID'] : null;
+    }
+
+    /**
+     * @return string
+     */
+    private function getEnvClientID() {
+        $env = $this->getEnvironment();
+        return isset($env['SPACES_OAUTH_CLIENT_ID']) ? $env['SPACES_OAUTH_CLIENT_ID'] : null;
     }
 }
