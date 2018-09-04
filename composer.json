@@ -1,5 +1,5 @@
 {
-  "name": "mittwald/wordpress-spaces-auth",
+  "name": "spaces/wordpress-oauth",
   "description": "SPACES authentication for the wordpress backend",
   "license": "MIT",
   "type": "wordpress-plugin",
